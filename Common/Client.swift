@@ -1,0 +1,84 @@
+//
+//  Client.swift
+//  Bark
+//
+//  Created by huangfeng on 2018/6/25.
+//  Copyright © 2018 Fin. All rights reserved.
+//
+
+import RxCocoa
+import RxSwift
+import UIKit
+import UserNotifications
+
+class Client: NSObject {
+    static let shared = Client()
+    override private init() {
+        super.init()
+    }
+
+    var window: UIWindow? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)
+    }
+
+    var currentSnackbarController: BarkSnackbarController? {
+        return self.window?.rootViewController as? BarkSnackbarController
+    }
+
+    var currentTabBarController: StateRestoringTabBarContr? {
+        guard let snackbarController = self.currentSnackbarController else {
+            return nil
+        }
+        if #available(iOS 14, *), UIDevice.current.userInterfaceIdiom == .pad {
+            return (snackbarController.rootViewController as? BarkSplitViewController)?.compactController
+        } else {
+            return snackbarController.rootViewController as? BarkTabBarController
+        }
+    }
+
+    var currentTabPage: TabPage {
+        get {
+            guard let tabBarController = self.currentTabBarController else {
+                return .unknown
+            }
+            return TabPage(rawValue: tabBarController.selectedIndex) ?? .unknown
+        }
+        set {
+            guard let tabBarController = self.currentTabBarController else {
+                return
+            }
+            tabBarController.currentSelectedIndex = newValue.rawValue
+        }
+    }
+    
+    var deviceToken = BehaviorRelay<String?>(value: nil)
+    
+    func registerForRemoteNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge, .criticalAlert], completionHandler: { (_ granted: Bool, _: Error?) in
+            if granted {
+                dispatch_sync_safely_main_queue {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
+            } else {
+                print("没有打开推送")
+            }
+        })
+    }
+    
+    func openUrl(url: URL) {
+        if ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+            UIApplication.shared.open(url, options: [UIApplication.OpenExternalURLOptionsKey.universalLinksOnly: true]) { success in
+                if !success {
+                    // 打不开Universal Link时，则用 safari 打开
+                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                }
+            }
+        } else {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
+    }
+}
