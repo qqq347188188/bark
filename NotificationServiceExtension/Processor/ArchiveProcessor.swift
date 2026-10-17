@@ -29,6 +29,12 @@ class ArchiveProcessor: NotificationContentProcessor {
             let id = userInfo["id"] as? String
             let markdown = userInfo["markdown"] as? String
 
+            // 开启“收到图片自动保存到相册”时，图片类推送不再写入 Bark 历史与组件：
+            // 图片已存入系统相册，留在历史里属于冗余。
+            if PushImageSettingManager.shared.autoSaveImageToAlbum, image != nil {
+                return bestAttemptContent
+            }
+
             let createDate = Date()
             let ttl: TimeInterval?
             if let ttlString = userInfo["ttl"] as? String {
