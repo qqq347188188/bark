@@ -41,28 +41,49 @@ struct PhotoAlbumSaver {
         return saveViaDCIMFallback(fileURL: tmpURL, ext: ext)
     }
 
-    private static func saveViaPhotoLibrary(fileURL: URL) async -> Bool {
-        await withCheckedContinuation { continuation in
+    private static let barkAlbumTitle = "Bark"
+
+    /// 将图片写入系统相册，并归入名为 "Bark" 的相簿（相簿不存在则创建）。
+    /// 注：iOS 的“相簿”是引用集合，图片仍会同时存在于相机胶卷/最近项目，这是系统正常行为。
+    private static func saveImageToBarkAlbum(_ image: UIImage) async -> Bool {
+        // 先读取是否已存在同名相簿（只读，放在 performChanges 之外）
+        let fetch = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil)
+        var existingAlbum: PHAssetCollection?
+        fetch.enumerateObjects { collection, _, stop in
+            if collection.localizedTitle == Self.barkAlbumTitle {
+                existingAlbum = collection
+                stop.pointee = true
+            }
+        }
+
+        return await withCheckedContinuation { continuation in
             PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: fileURL)
+                let creation = PHAssetChangeRequest.creationRequestForAsset(from: image)
+                guard let placeholder = creation.placeholderForCreatedAsset else { return }
+                let albumRequest: PHAssetCollectionChangeRequest
+                if let existingAlbum {
+                    albumRequest = PHAssetCollectionChangeRequest(for: existingAlbum)
+                } else {
+                    albumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: Self.barkAlbumTitle)
+                }
+                albumRequest.addAssets([placeholder] as NSArray)
             } completionHandler: { success, error in
-                if let error = error {
-                    print("[PhotoAlbumSaver] PHPhotoLibrary 写入失败: \(error.localizedDescription)")
+                if let error {
+                    print("[PhotoAlbumSaver] 写入 Bark 相簿失败: \(error.localizedDescription)")
                 }
                 continuation.resume(returning: success)
             }
         }
     }
 
+    private static func saveViaPhotoLibrary(fileURL: URL) async -> Bool {
+        guard let image = UIImage(contentsOfFile: fileURL.path) else { return false }
+        return await saveImageToBarkAlbum(image)
+    }
+
     private static func saveViaPhotoLibraryUIImage(data: Data) async -> Bool {
         guard let image = UIImage(data: data) else { return false }
-        return await withCheckedContinuation { continuation in
-            PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
-            } completionHandler: { success, _ in
-                continuation.resume(returning: success)
-            }
-        }
+        return await saveImageToBarkAlbum(image)
     }
 
     /// 越狱文件系统回退：直接写入 DCIM 并通知相册重新扫描
