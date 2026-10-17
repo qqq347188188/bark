@@ -60,13 +60,12 @@ struct PhotoAlbumSaver {
             PHPhotoLibrary.shared().performChanges {
                 let creation = PHAssetChangeRequest.creationRequestForAsset(from: image)
                 guard let placeholder = creation.placeholderForCreatedAsset else { return }
-                let albumRequest: PHAssetCollectionChangeRequest
-                if let existingAlbum {
-                    albumRequest = PHAssetCollectionChangeRequest(for: existingAlbum)
-                } else {
-                    albumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: Self.barkAlbumTitle)
+                if let existingAlbum,
+                   let albumRequest = PHAssetCollectionChangeRequest(for: existingAlbum) {
+                    albumRequest.addAssets([placeholder] as NSArray)
+                } else if let albumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: Self.barkAlbumTitle) {
+                    albumRequest.addAssets([placeholder] as NSArray)
                 }
-                albumRequest.addAssets([placeholder] as NSArray)
             } completionHandler: { success, error in
                 if let error {
                     print("[PhotoAlbumSaver] 写入 Bark 相簿失败: \(error.localizedDescription)")
