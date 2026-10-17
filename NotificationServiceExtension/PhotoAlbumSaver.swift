@@ -63,7 +63,8 @@ struct PhotoAlbumSaver {
                 if let existingAlbum,
                    let albumRequest = PHAssetCollectionChangeRequest(for: existingAlbum) {
                     albumRequest.addAssets([placeholder] as NSArray)
-                } else if let albumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: Self.barkAlbumTitle) {
+                } else {
+                    let albumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: Self.barkAlbumTitle)
                     albumRequest.addAssets([placeholder] as NSArray)
                 }
             } completionHandler: { success, error in
